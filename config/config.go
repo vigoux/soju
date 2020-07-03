@@ -13,14 +13,20 @@ type TLS struct {
 	CertPath, KeyPath string
 }
 
+type ExternalAuth struct {
+	Mechanism string
+	URL       string
+}
+
 type Server struct {
-	Listen      []string
-	Hostname    string
-	TLS         *TLS
-	SQLDriver   string
-	SQLSource   string
-	LogPath     string
-	HTTPOrigins []string
+	Listen       []string
+	Hostname     string
+	TLS          *TLS
+	SQLDriver    string
+	SQLSource    string
+	LogPath      string
+	HTTPOrigins  []string
+	ExternalAuth *ExternalAuth
 }
 
 func Defaults() *Server {
@@ -93,6 +99,12 @@ func Parse(r io.Reader) (*Server, error) {
 			}
 		case "http-origin":
 			srv.HTTPOrigins = append(srv.HTTPOrigins, d.Params...)
+		case "external-auth":
+			var mech, url string
+			if err := d.parseParams(&mech, &url); err != nil {
+				return nil, err
+			}
+			srv.ExternalAuth = &ExternalAuth{mech, url}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

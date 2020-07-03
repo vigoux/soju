@@ -9,6 +9,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var ErrNoSuchUser = fmt.Errorf("soju: no such user")
+
 type User struct {
 	Created  bool
 	Username string
@@ -222,7 +224,9 @@ func (db *DB) GetUser(username string) (*User, error) {
 
 	var password *string
 	row := db.db.QueryRow("SELECT password, admin FROM User WHERE username = ?", username)
-	if err := row.Scan(&password, &user.Admin); err != nil {
+	if err := row.Scan(&password, &user.Admin); err == sql.ErrNoRows {
+		return nil, ErrNoSuchUser
+	} else if err != nil {
 		return nil, err
 	}
 	user.Password = fromStringPtr(password)

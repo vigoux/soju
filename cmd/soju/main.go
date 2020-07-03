@@ -59,6 +59,9 @@ func main() {
 	srv.LogPath = cfg.LogPath
 	srv.HTTPOrigins = cfg.HTTPOrigins
 	srv.Debug = debug
+	if cfg.ExternalAuth != nil {
+		srv.ExternalAuthURL = cfg.ExternalAuth.URL
+	}
 
 	for _, listen := range cfg.Listen {
 		listenURI := listen

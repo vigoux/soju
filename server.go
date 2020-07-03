@@ -41,13 +41,14 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 }
 
 type Server struct {
-	Hostname     string
-	Logger       Logger
-	RingCap      int
-	HistoryLimit int
-	LogPath      string
-	Debug        bool
-	HTTPOrigins  []string
+	Hostname        string
+	Logger          Logger
+	RingCap         int
+	HistoryLimit    int
+	LogPath         string
+	Debug           bool
+	HTTPOrigins     []string
+	ExternalAuthURL string
 
 	db *DB
 

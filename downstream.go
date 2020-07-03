@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -683,21 +684,56 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 func (dc *downstreamConn) authenticate(username, password string) error {
 	username, clientName, networkName := unmarshalUsername(username)
 
-	u, err := dc.srv.db.GetUser(username)
-	if err != nil {
-		dc.logger.Printf("failed authentication for %q: %v", username, err)
-		return errAuthFailed
-	}
+	if dc.srv.ExternalAuthURL != "" {
+		if !strings.HasPrefix(dc.srv.ExternalAuthURL, "https://") {
+			dc.logger.Printf("failed authentication for %q: unsupported external auth URL", username)
+			return errAuthFailed
+		}
+		req, err := http.NewRequest(http.MethodGet, dc.srv.ExternalAuthURL, nil)
+		if err != nil {
+			dc.logger.Printf("failed authentication for %q: failed to create HTTP request: %v", username, err)
+			return errAuthFailed
+		}
+		req.SetBasicAuth(username, password)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			dc.logger.Printf("failed authentication for %q: failed to send HTTP request: %v", username, err)
+			return errAuthFailed
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			dc.logger.Printf("failed authentication for %q: HTTP error: %v", username, resp.Status)
+			return errAuthFailed
+		}
 
-	// Password auth disabled
-	if u.Password == "" {
-		return errAuthFailed
-	}
+		// Insert user in DB on first login
+		if _, err := dc.srv.db.GetUser(username); err == ErrNoSuchUser {
+			u := User{Username: username, Password: "!!"}
+			if _, err := dc.srv.createUser(&u); err != nil {
+				dc.logger.Printf("failed to auto-create user %q: %v", username, err)
+				return errAuthFailed
+			}
+		} else if err != nil {
+			dc.logger.Printf("failed authentication for %q: %v", username, err)
+			return errAuthFailed
+		}
+	} else {
+		u, err := dc.srv.db.GetUser(username)
+		if err != nil {
+			dc.logger.Printf("failed authentication for %q: %v", username, err)
+			return errAuthFailed
+		}
 
-	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
-	if err != nil {
-		dc.logger.Printf("failed authentication for %q: %v", username, err)
-		return errAuthFailed
+		if u.Password == "" {
+			dc.logger.Printf("failed authentication for %q: no password in DB", username)
+			return errAuthFailed
+		}
+
+		err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+		if err != nil {
+			dc.logger.Printf("failed authentication for %q: %v", username, err)
+			return errAuthFailed
+		}
 	}
 
 	dc.user = dc.srv.getUser(username)
