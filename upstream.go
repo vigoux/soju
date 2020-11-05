@@ -1628,7 +1628,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 
 	history, ok := uc.network.history[entity]
 	if !ok {
-		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entity, time.Now())
+		lastID, err := uc.user.msgStore.LastMsgID(&uc.network.Network, entity, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
 			return
@@ -1652,7 +1652,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		}
 	}
 
-	msgID, err := uc.user.msgStore.Append(uc.network, entity, msg)
+	msgID, err := uc.user.msgStore.Append(&uc.network.Network, entity, msg)
 	if err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
 		return

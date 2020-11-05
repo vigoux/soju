@@ -10,6 +10,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/msgstore"
 )
 
 type event interface{}
@@ -251,7 +252,7 @@ type user struct {
 
 	networks        []*network
 	downstreamConns []*downstreamConn
-	msgStore        *messageStore
+	msgStore        msgstore.Store
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -264,9 +265,9 @@ type pendingLIST struct {
 }
 
 func newUser(srv *Server, record *database.User) *user {
-	var msgStore *messageStore
+	var msgStore msgstore.Store
 	if srv.LogPath != "" {
-		msgStore = newMessageStore(srv.LogPath, record.Username)
+		msgStore = msgstore.NewDisk(srv.LogPath, record)
 	}
 
 	return &user{

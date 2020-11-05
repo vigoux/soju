@@ -829,7 +829,7 @@ func (dc *downstreamConn) welcome() error {
 				continue
 			}
 
-			lastID, err := dc.user.msgStore.LastMsgID(net, target, time.Now())
+			lastID, err := dc.user.msgStore.LastMsgID(&net.Network, target, time.Now())
 			if err != nil {
 				dc.logger.Printf("failed to get last message ID: %v", err)
 				continue
@@ -856,7 +856,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 		}
 
 		limit := 4000
-		history, err := dc.user.msgStore.LoadLatestID(net, target, lastDelivered, limit)
+		history, err := dc.user.msgStore.LoadLatestID(&net.Network, target, lastDelivered, limit)
 		if err != nil {
 			dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
 			continue
@@ -1607,9 +1607,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = dc.user.msgStore.LoadBeforeTime(uc.network, entity, timestamp, limit)
+			history, err = dc.user.msgStore.LoadBeforeTime(&uc.network.Network, entity, timestamp, limit)
 		case "AFTER":
-			history, err = dc.user.msgStore.LoadAfterTime(uc.network, entity, timestamp, limit)
+			history, err = dc.user.msgStore.LoadAfterTime(&uc.network.Network, entity, timestamp, limit)
 		default:
 			// TODO: support LATEST, BETWEEN
 			return ircError{&irc.Message{
