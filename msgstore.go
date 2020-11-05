@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/ircutil"
 )
 
 const messageStoreMaxTries = 100
@@ -83,7 +85,7 @@ func (ms *messageStore) Append(network *network, entity string, msg *irc.Message
 	var t time.Time
 	if tag, ok := msg.Tags["time"]; ok {
 		var err error
-		t, err = time.Parse(serverTimeLayout, string(tag))
+		t, err = time.Parse(ircutil.ServerTimeLayout, string(tag))
 		if err != nil {
 			return "", fmt.Errorf("failed to parse message time tag: %v", err)
 		}
@@ -177,7 +179,7 @@ func formatMessage(msg *irc.Message) string {
 	case "NOTICE":
 		return fmt.Sprintf("-%s- %s", msg.Prefix.Name, msg.Params[1])
 	case "PRIVMSG":
-		if cmd, params, ok := parseCTCPMessage(msg); ok && cmd == "ACTION" {
+		if cmd, params, ok := ircutil.ParseCTCPMessage(msg); ok && cmd == "ACTION" {
 			return fmt.Sprintf("* %s %s", msg.Prefix.Name, params)
 		} else {
 			return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
@@ -226,7 +228,7 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 
 	msg := &irc.Message{
 		Tags: map[string]irc.TagValue{
-			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
+			"time": ircutil.FormatTimeTag(t),
 		},
 		Prefix:  &irc.Prefix{Name: sender},
 		Command: cmd,

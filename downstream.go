@@ -15,44 +15,8 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/ircutil"
 )
-
-type ircError struct {
-	Message *irc.Message
-}
-
-func (err ircError) Error() string {
-	return err.Message.String()
-}
-
-func newUnknownCommandError(cmd string) ircError {
-	return ircError{&irc.Message{
-		Command: irc.ERR_UNKNOWNCOMMAND,
-		Params: []string{
-			"*",
-			cmd,
-			"Unknown command",
-		},
-	}}
-}
-
-func newNeedMoreParamsError(cmd string) ircError {
-	return ircError{&irc.Message{
-		Command: irc.ERR_NEEDMOREPARAMS,
-		Params: []string{
-			"*",
-			cmd,
-			"Not enough parameters",
-		},
-	}}
-}
-
-func newChatHistoryError(subcommand string, target string) ircError {
-	return ircError{&irc.Message{
-		Command: "FAIL",
-		Params:  []string{"CHATHISTORY", "MESSAGE_ERROR", subcommand, target, "Messages could not be retrieved"},
-	}}
-}
 
 var errAuthFailed = ircError{&irc.Message{
 	Command: irc.ERR_PASSWDMISMATCH,
@@ -530,7 +494,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 	case "REQ":
 		if len(args) == 0 {
 			return ircError{&irc.Message{
-				Command: err_invalidcapcmd,
+				Command: ircutil.ERR_INVALIDCAPCMD,
 				Params:  []string{replyTo, cmd, "Missing argument in CAP REQ command"},
 			}}
 		}
@@ -577,7 +541,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		dc.negociatingCaps = false
 	default:
 		return ircError{&irc.Message{
-			Command: err_invalidcapcmd,
+			Command: ircutil.ERR_INVALIDCAPCMD,
 			Params:  []string{replyTo, cmd, "Unknown CAP command"},
 		}}
 	}
@@ -1251,7 +1215,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if ch.creationTime != "" {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_creationtime,
+					Command: ircutil.RPL_CREATIONTIME,
 					Params:  []string{dc.nick, name, ch.creationTime},
 				})
 			}
@@ -1480,7 +1444,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 			return err
 		}
-		tags := copyClientTags(msg.Tags)
+		tags := ircutil.CopyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			if name == serviceNick {
@@ -1508,7 +1472,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 
 			echoTags := tags.Copy()
-			echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+			echoTags["time"] = ircutil.FormatTimeTag(time.Now())
 			echoMsg := &irc.Message{
 				Tags: echoTags,
 				Prefix: &irc.Prefix{
@@ -1525,7 +1489,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 			return err
 		}
-		tags := copyClientTags(msg.Tags)
+		tags := ircutil.CopyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			uc, upstreamName, err := dc.unmarshalEntity(name)
@@ -1548,7 +1512,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &targetsStr); err != nil {
 			return err
 		}
-		tags := copyClientTags(msg.Tags)
+		tags := ircutil.CopyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			uc, upstreamName, err := dc.unmarshalEntity(name)
@@ -1624,7 +1588,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
+		timestamp, err := time.Parse(ircutil.ServerTimeLayout, criteriaParts[1])
 		if err != nil {
 			return ircError{&irc.Message{
 				Command: "FAIL",

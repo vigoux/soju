@@ -19,6 +19,8 @@ import (
 
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/ircutil"
 )
 
 // permanentUpstreamCaps is the static list of upstream capabilities always
@@ -39,16 +41,23 @@ func (err registrationError) Error() string {
 	return fmt.Sprintf("registration error: %v", string(err))
 }
 
+type batch struct {
+	Type   string
+	Params []string
+	Outer  *batch // if not-nil, this batch is nested in Outer
+	Label  string
+}
+
 type upstreamChannel struct {
 	Name         string
 	conn         *upstreamConn
 	Topic        string
 	TopicWho     *irc.Prefix
 	TopicTime    time.Time
-	Status       channelStatus
-	modes        channelModes
+	Status       ircutil.ChannelStatus
+	modes        ircutil.ChannelModes
 	creationTime string
-	Members      map[string]*memberships
+	Members      map[string]*ircutil.Memberships
 	complete     bool
 }
 
@@ -60,15 +69,15 @@ type upstreamConn struct {
 
 	serverName            string
 	availableUserModes    string
-	availableChannelModes map[byte]channelModeType
+	availableChannelModes map[byte]ircutil.ChannelModeType
 	availableChannelTypes string
-	availableMemberships  []membership
+	availableMemberships  []ircutil.Membership
 
 	registered    bool
 	nick          string
 	username      string
 	realname      string
-	modes         userModes
+	modes         ircutil.UserModes
 	channels      map[string]*upstreamChannel
 	supportedCaps map[string]string
 	caps          map[string]bool
@@ -176,9 +185,9 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		supportedCaps:            make(map[string]string),
 		caps:                     make(map[string]bool),
 		batches:                  make(map[string]batch),
-		availableChannelTypes:    stdChannelTypes,
-		availableChannelModes:    stdChannelModes,
-		availableMemberships:     stdMemberships,
+		availableChannelTypes:    ircutil.StdChannelTypes,
+		availableChannelModes:    ircutil.StdChannelModes,
+		availableMemberships:     ircutil.StdMemberships,
 		pendingLISTDownstreamSet: make(map[uint64]struct{}),
 	}
 	return uc, nil
@@ -281,8 +290,8 @@ func (uc *upstreamConn) trySendLIST(downstreamID uint64) {
 	}
 }
 
-func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick string) {
-	memberships := make(memberships, 0, 4)
+func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *ircutil.Memberships, nick string) {
+	memberships := make(ircutil.Memberships, 0, 4)
 	i := 0
 	for _, m := range uc.availableMemberships {
 		if i >= len(s) {
@@ -361,7 +370,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	}
 
 	if _, ok := msg.Tags["time"]; !ok {
-		msg.Tags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+		msg.Tags["time"] = ircutil.FormatTimeTag(time.Now())
 	}
 
 	switch msg.Command {
@@ -583,7 +592,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				keys = append(keys, ch.Key)
 			}
 
-			for _, msg := range join(channels, keys) {
+			for _, msg := range ircutil.Join(channels, keys) {
 				uc.SendMessage(msg)
 			}
 		}
@@ -615,8 +624,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 					if len(parts) < 4 {
 						return fmt.Errorf("malformed ISUPPORT CHANMODES value: %v", value)
 					}
-					modes := make(map[byte]channelModeType)
-					for i, mt := range []channelModeType{modeTypeA, modeTypeB, modeTypeC, modeTypeD} {
+					modes := make(map[byte]ircutil.ChannelModeType)
+					for i, mt := range ircutil.ChannelModeTypes {
 						for j := 0; j < len(parts[i]); j++ {
 							mode := parts[i][j]
 							modes[mode] = mt
@@ -636,9 +645,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 						if sep < 0 || len(value) != sep*2 {
 							return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", value)
 						}
-						memberships := make([]membership, len(value)/2-1)
+						memberships := make([]ircutil.Membership, len(value)/2-1)
 						for i := range memberships {
-							memberships[i] = membership{
+							memberships[i] = ircutil.Membership{
 								Mode:   value[i+1],
 								Prefix: value[sep+i+1],
 							}
@@ -734,7 +743,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				uc.channels[ch] = &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
-					Members: make(map[string]*memberships),
+					Members: make(map[string]*ircutil.Memberships),
 				}
 
 				uc.SendMessage(&irc.Message{
@@ -746,7 +755,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				if err != nil {
 					return err
 				}
-				ch.Members[msg.Prefix.Name] = &memberships{}
+				ch.Members[msg.Prefix.Name] = &ircutil.Memberships{}
 			}
 
 			chMsg := msg.Copy()
@@ -954,7 +963,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				})
 			}
 		}
-	case rpl_creationtime:
+	case ircutil.RPL_CREATIONTIME:
 		var channel, creationTime string
 		if err := parseMessageParams(msg, nil, &channel, &creationTime); err != nil {
 			return err
@@ -971,12 +980,12 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_creationtime,
+					Command: ircutil.RPL_CREATIONTIME,
 					Params:  []string{dc.nick, dc.marshalEntity(uc.network, ch.Name), creationTime},
 				})
 			})
 		}
-	case rpl_topicwhotime:
+	case ircutil.RPL_TOPICWHOTIME:
 		var name, who, timeStr string
 		if err := parseMessageParams(msg, nil, &name, &who, &timeStr); err != nil {
 			return err
@@ -997,7 +1006,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_topicwhotime,
+					Command: ircutil.RPL_TOPICWHOTIME,
 					Params: []string{
 						dc.nick,
 						dc.marshalEntity(uc.network, ch.Name),
@@ -1044,7 +1053,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				members := splitSpace(members)
 				for i, member := range members {
 					memberships, nick := uc.parseMembershipPrefix(member)
-					members[i] = memberships.Format(dc) + dc.marshalEntity(uc.network, nick)
+					members[i] = memberships.Format(dc.caps) + dc.marshalEntity(uc.network, nick)
 				}
 				memberStr := strings.Join(members, " ")
 
@@ -1057,7 +1066,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return nil
 		}
 
-		status, err := parseChannelStatus(statusStr)
+		status, err := ircutil.ParseChannelStatus(statusStr)
 		if err != nil {
 			return err
 		}
@@ -1218,7 +1227,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			for i, channel := range channels {
 				prefix, channel := uc.parseMembershipPrefix(channel)
 				channel = dc.marshalEntity(uc.network, channel)
-				channelList[i] = prefix.Format(dc) + channel
+				channelList[i] = prefix.Format(dc.caps) + channel
 			}
 			channels := strings.Join(channelList, " ")
 			dc.SendMessage(&irc.Message{
@@ -1369,9 +1378,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// Ignore
 	case irc.RPL_LISTSTART:
 		// Ignore
-	case rpl_localusers, rpl_globalusers:
+	case ircutil.RPL_LOCALUSERS, ircutil.RPL_GLOBALUSERS:
 		// Ignore
-	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
+	case irc.RPL_STATSVLINE, ircutil.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		// Ignore
 	case "ERROR":
 		var text string
