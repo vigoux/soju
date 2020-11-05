@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 type event interface{}
@@ -55,19 +57,19 @@ type networkHistory struct {
 }
 
 type network struct {
-	Network
+	database.Network
 	user    *user
 	stopped chan struct{}
 
 	conn           *upstreamConn
-	channels       map[string]*Channel
+	channels       map[string]*database.Channel
 	history        map[string]*networkHistory // indexed by entity
 	offlineClients map[string]struct{}        // indexed by client name
 	lastError      error
 }
 
-func newNetwork(user *user, record *Network, channels []Channel) *network {
-	m := make(map[string]*Channel, len(channels))
+func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
+	m := make(map[string]*database.Channel, len(channels))
 	for _, ch := range channels {
 		ch := ch
 		m[ch.Name] = &ch
@@ -101,7 +103,7 @@ func (net *network) isStopped() bool {
 	}
 }
 
-func userIdent(u *User) string {
+func userIdent(u *database.User) string {
 	// The ident is a string we will send to upstream servers in clear-text.
 	// For privacy reasons, make sure it doesn't expose any meaningful user
 	// metadata. We just use the base64-encoded hashed ID, so that people don't
@@ -176,7 +178,7 @@ func (net *network) stop() {
 	}
 }
 
-func (net *network) createUpdateChannel(ch *Channel) error {
+func (net *network) createUpdateChannel(ch *database.Channel) error {
 	if current, ok := net.channels[ch.Name]; ok {
 		ch.ID = current.ID // update channel if it already exists
 	}
@@ -241,7 +243,7 @@ func (net *network) deleteChannel(name string) error {
 }
 
 type user struct {
-	User
+	database.User
 	srv *Server
 
 	events chan event
@@ -261,7 +263,7 @@ type pendingLIST struct {
 	pendingCommands map[int64]*irc.Message
 }
 
-func newUser(srv *Server, record *User) *user {
+func newUser(srv *Server, record *database.User) *user {
 	var msgStore *messageStore
 	if srv.LogPath != "" {
 		msgStore = newMessageStore(srv.LogPath, record.Username)
@@ -510,7 +512,7 @@ func (u *user) removeNetwork(network *network) {
 	panic("tried to remove a non-existing network")
 }
 
-func (u *user) createNetwork(record *Network) (*network, error) {
+func (u *user) createNetwork(record *database.Network) (*network, error) {
 	if record.ID != 0 {
 		panic("tried creating an already-existing network")
 	}
@@ -526,7 +528,7 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 	return network, nil
 }
 
-func (u *user) updateNetwork(record *Network) (*network, error) {
+func (u *user) updateNetwork(record *database.Network) (*network, error) {
 	if record.ID == 0 {
 		panic("tried updating a new network")
 	}
@@ -542,7 +544,7 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 
 	// Most network changes require us to re-connect to the upstream server
 
-	channels := make([]Channel, 0, len(network.channels))
+	channels := make([]database.Channel, 0, len(network.channels))
 	for _, ch := range network.channels {
 		channels = append(channels, *ch)
 	}

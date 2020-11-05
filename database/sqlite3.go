@@ -1,4 +1,4 @@
-package soju
+package database
 
 import (
 	"database/sql"
@@ -8,56 +8,6 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type User struct {
-	ID       int64
-	Username string
-	Password string // hashed
-	Admin    bool
-}
-
-type SASL struct {
-	Mechanism string
-
-	Plain struct {
-		Username string
-		Password string
-	}
-
-	// TLS client certificate authentication.
-	External struct {
-		// X.509 certificate in DER form.
-		CertBlob []byte
-		// PKCS#8 private key in DER form.
-		PrivKeyBlob []byte
-	}
-}
-
-type Network struct {
-	ID              int64
-	Name            string
-	Addr            string
-	Nick            string
-	Username        string
-	Realname        string
-	Pass            string
-	ConnectCommands []string
-	SASL            SASL
-}
-
-func (net *Network) GetName() string {
-	if net.Name != "" {
-		return net.Name
-	}
-	return net.Addr
-}
-
-type Channel struct {
-	ID       int64
-	Name     string
-	Key      string
-	Detached bool
-}
 
 const schema = `
 CREATE TABLE User (
@@ -148,18 +98,18 @@ var migrations = []string{
 	`,
 }
 
-type DB struct {
+type sqlite3DB struct {
 	lock sync.RWMutex
 	db   *sql.DB
 }
 
-func OpenSQLDB(driver, source string) (*DB, error) {
-	sqlDB, err := sql.Open(driver, source)
+func openSQLite3(source string) (DB, error) {
+	sqlDB, err := sql.Open("sqlite3", source)
 	if err != nil {
 		return nil, err
 	}
 
-	db := &DB{db: sqlDB}
+	db := &sqlite3DB{db: sqlDB}
 	if err := db.upgrade(); err != nil {
 		return nil, err
 	}
@@ -167,13 +117,13 @@ func OpenSQLDB(driver, source string) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) Close() error {
+func (db *sqlite3DB) Close() error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	return db.db.Close()
 }
 
-func (db *DB) upgrade() error {
+func (db *sqlite3DB) upgrade() error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -222,7 +172,7 @@ func toNullString(s string) sql.NullString {
 	}
 }
 
-func (db *DB) ListUsers() ([]User, error) {
+func (db *sqlite3DB) ListUsers() ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -249,7 +199,7 @@ func (db *DB) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-func (db *DB) GetUser(username string) (*User, error) {
+func (db *sqlite3DB) GetUser(username string) (*User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -264,7 +214,7 @@ func (db *DB) GetUser(username string) (*User, error) {
 	return user, nil
 }
 
-func (db *DB) StoreUser(user *User) error {
+func (db *sqlite3DB) StoreUser(user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -287,7 +237,7 @@ func (db *DB) StoreUser(user *User) error {
 	return err
 }
 
-func (db *DB) DeleteUser(id int64) error {
+func (db *sqlite3DB) DeleteUser(id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -321,7 +271,7 @@ func (db *DB) DeleteUser(id int64) error {
 	return tx.Commit()
 }
 
-func (db *DB) ListNetworks(userID int64) ([]Network, error) {
+func (db *sqlite3DB) ListNetworks(userID int64) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -366,7 +316,7 @@ func (db *DB) ListNetworks(userID int64) ([]Network, error) {
 	return networks, nil
 }
 
-func (db *DB) StoreNetwork(userID int64, network *Network) error {
+func (db *sqlite3DB) StoreNetwork(userID int64, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -420,7 +370,7 @@ func (db *DB) StoreNetwork(userID int64, network *Network) error {
 	return err
 }
 
-func (db *DB) DeleteNetwork(id int64) error {
+func (db *sqlite3DB) DeleteNetwork(id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -443,7 +393,7 @@ func (db *DB) DeleteNetwork(id int64) error {
 	return tx.Commit()
 }
 
-func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
+func (db *sqlite3DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -472,7 +422,7 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	return channels, nil
 }
 
-func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
+func (db *sqlite3DB) StoreChannel(networkID int64, ch *Channel) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -497,7 +447,7 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	return err
 }
 
-func (db *DB) DeleteChannel(id int64) error {
+func (db *sqlite3DB) DeleteChannel(id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 

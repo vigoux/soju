@@ -13,6 +13,7 @@ import (
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 		cfg.Listen = []string{":6697"}
 	}
 
-	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}

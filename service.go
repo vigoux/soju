@@ -24,6 +24,8 @@ import (
 	"github.com/google/shlex"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const serviceNick = "BouncerServ"
@@ -320,7 +322,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	return fs
 }
 
-func (fs *networkFlagSet) update(network *Network) error {
+func (fs *networkFlagSet) update(network *database.Network) error {
 	if fs.Addr != nil {
 		if addrParts := strings.SplitN(*fs.Addr, "://", 2); len(addrParts) == 2 {
 			scheme := addrParts[0]
@@ -372,7 +374,7 @@ func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("flag -addr is required")
 	}
 
-	record := &Network{
+	record := &database.Network{
 		Addr: *fs.Addr,
 		Nick: dc.nick,
 	}
@@ -663,7 +665,7 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("failed to hash password: %v", err)
 	}
 
-	user := &User{
+	user := &database.User{
 		Username: *username,
 		Password: string(hashed),
 		Admin:    *admin,

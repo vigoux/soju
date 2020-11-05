@@ -13,6 +13,8 @@ import (
 	"github.com/emersion/go-sasl"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 type ircError struct {
@@ -775,7 +777,7 @@ func (dc *downstreamConn) loadNetwork() error {
 
 		dc.logger.Printf("auto-saving network %q", dc.networkName)
 		var err error
-		network, err = dc.user.createNetwork(&Network{
+		network, err = dc.user.createNetwork(&database.Network{
 			Addr: dc.networkName,
 			Nick: nick,
 		})
@@ -1071,7 +1073,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			ch := &Channel{Name: upstreamName, Key: key, Detached: false}
+			ch := &database.Channel{Name: upstreamName, Key: key, Detached: false}
 			if current, ok := uc.network.channels[ch.Name]; ok && key == "" {
 				// Don't clear the channel key if there's one set
 				// TODO: add a way to unset the channel key
@@ -1099,7 +1101,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if strings.EqualFold(reason, "detach") {
-				ch := &Channel{Name: upstreamName, Detached: true}
+				ch := &database.Channel{Name: upstreamName, Detached: true}
 				if err := uc.network.createUpdateChannel(ch); err != nil {
 					dc.logger.Printf("failed to detach channel %q: %v", upstreamName, err)
 				}

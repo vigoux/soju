@@ -13,6 +13,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 // TODO: make configurable
@@ -54,13 +55,13 @@ type Server struct {
 	AcceptProxyIPs config.IPSet
 	Identd         *Identd // can be nil
 
-	db *DB
+	db database.DB
 
 	lock  sync.Mutex
 	users map[string]*user
 }
 
-func NewServer(db *DB) *Server {
+func NewServer(db database.DB) *Server {
 	return &Server{
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
 		HistoryLimit: 1000,
@@ -88,7 +89,7 @@ func (s *Server) Run() error {
 	select {}
 }
 
-func (s *Server) createUser(user *User) (*user, error) {
+func (s *Server) createUser(user *database.User) (*user, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -111,7 +112,7 @@ func (s *Server) getUser(name string) *user {
 	return u
 }
 
-func (s *Server) addUserLocked(user *User) *user {
+func (s *Server) addUserLocked(user *database.User) *user {
 	s.Logger.Printf("starting bouncer for user %q", user.Username)
 	u := newUser(s, user)
 	s.users[u.Username] = u
