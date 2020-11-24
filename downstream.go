@@ -70,6 +70,7 @@ var permanentDownstreamCaps = map[string]string{
 	"message-tags": "",
 	"sasl":         "PLAIN",
 	"server-time":  "",
+	"soju.im/namespace": "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -102,6 +103,8 @@ type downstreamConn struct {
 	caps            map[string]bool
 
 	saslServer sasl.Server
+
+	namespaces map[string]*downstreamConn
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -113,6 +116,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
+		namespaces:    make(map[string]*downstreamConn),
 	}
 	dc.hostname = remoteAddr
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -262,6 +266,13 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
+func (dc *downstreamConn) Close() error {
+	for _, child := range dc.namespaces {
+		child.Close()
+	}
+	return dc.conn.Close()
+}
+
 // SendMessage sends an outgoing message.
 //
 // This can only called from the user goroutine.
@@ -319,6 +330,18 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
+	if ns, ok := msg.Tags["namespace"]; ok {
+		child, ok := dc.namespaces[string(ns)]
+		if !ok {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{msg.Command, "INVALID_NAMESPACE", string(ns), "Unknown namespace"},
+			}}
+		}
+		delete(msg.Tags, "namespace")
+		return child.handleMessage(msg)
+	}
+
 	switch msg.Command {
 	case "QUIT":
 		return dc.Close()
@@ -829,6 +852,35 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.updateNick()
+
+	if dc.caps["soju.im/namespace"] && dc.networkName == "" {
+		dc.forEachNetwork(func(net *network) {
+			ns := net.GetName()
+
+			nic := newNamespacedIRCConn(&dc.conn, ns)
+
+			// TODO: find proper ID for child conn
+			child := newDownstreamConn(dc.srv, nic, 0xFFFF)
+			child.clientName = dc.clientName
+			child.networkName = ns
+			child.user = dc.user
+			child.registered = true
+			// TODO: copy caps
+
+			dc.namespaces[ns] = child
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "NAMESPACE",
+				Params:  []string{"+" + ns},
+			})
+
+			if err := child.welcome(); err != nil {
+				dc.logger.Printf("failed to welcome child connection: %v", err)
+			}
+		})
+		return nil
+	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, ch := range uc.channels {

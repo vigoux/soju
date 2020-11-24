@@ -108,6 +108,64 @@ func (wa websocketAddr) String() string {
 	return string(wa)
 }
 
+type namespacedIRCConn struct {
+	conn *conn
+	namespace string
+
+	lock   sync.Mutex
+	closed chan struct{}
+}
+
+func newNamespacedIRCConn(c *conn, namespace string) *namespacedIRCConn {
+	return &namespacedIRCConn{
+		conn: c,
+		namespace: namespace,
+		closed: make(chan struct{}),
+	}
+}
+
+func (c *namespacedIRCConn) ReadMessage() (*irc.Message, error) {
+	// Reading is handled by parent connection
+	<-c.closed
+	return nil, io.EOF
+}
+
+func (c *namespacedIRCConn) WriteMessage(msg *irc.Message) error {
+	msg.Tags["namespace"] = irc.TagValue(c.namespace)
+	c.conn.SendMessage(msg)
+	return nil
+}
+
+func (c *namespacedIRCConn) SetReadDeadline(t time.Time) error {
+	return nil // ignored
+}
+
+func (c *namespacedIRCConn) SetWriteDeadline(t time.Time) error {
+	return nil // ignored
+}
+
+func (c *namespacedIRCConn) RemoteAddr() net.Addr {
+	return c.conn.conn.RemoteAddr()
+}
+
+func (c *namespacedIRCConn) LocalAddr() net.Addr {
+	return c.conn.conn.LocalAddr()
+}
+
+func (c *namespacedIRCConn) Close() error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	select {
+	case <-c.closed:
+		return fmt.Errorf("namespaced connection already closed")
+	default:
+		close(c.closed)
+	}
+
+	return nil
+}
+
 type rateLimiter struct {
 	C       <-chan struct{}
 	ticker  *time.Ticker
