@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pires/go-proxyproto"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
 
@@ -43,6 +45,19 @@ func (l *prefixLogger) Print(v ...interface{}) {
 func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	v = append([]interface{}{l.prefix}, v...)
 	l.logger.Printf("%v"+format, v...)
+}
+
+type contextKey string
+
+const proxyHeaderContextKey = "proxyHeader"
+
+func ContextWithProxyHeader(parent context.Context, header *proxyproto.Header) context.Context {
+	return context.WithValue(parent, proxyHeaderContextKey, header)
+}
+
+func proxyHeaderFromContext(ctx context.Context) *proxyproto.Header {
+	header, _ := ctx.Value(proxyHeaderContextKey).(*proxyproto.Header)
+	return header
 }
 
 type Server struct {

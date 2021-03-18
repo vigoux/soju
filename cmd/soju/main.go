@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/pires/go-proxyproto"
+	"golang.org/x/net/http2"
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
@@ -129,13 +131,25 @@ func main() {
 			if _, _, err := net.SplitHostPort(addr); err != nil {
 				addr = addr + ":https"
 			}
-			httpSrv := http.Server{
-				Addr:      addr,
-				TLSConfig: tlsCfg,
-				Handler:   srv,
+			wssTLSCfg := tlsCfg.Clone()
+			wssTLSCfg.NextProtos = []string{http2.NextProtoTLS, "http/1.1"}
+			ln, err := tls.Listen("tcp", addr, wssTLSCfg)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
+			ln = proxyProtoListener(ln, srv)
+			httpSrv := http.Server{
+				Handler: srv,
+				ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
+					if proxyConn, ok := conn.(*proxyproto.Conn); ok {
+						ctx = soju.ContextWithProxyHeader(ctx, proxyConn.ProxyHeader())
+					}
+					return ctx
+				},
+			}
+			http2.ConfigureServer(&httpSrv, nil)
 			go func() {
-				if err := httpSrv.ListenAndServeTLS("", ""); err != nil {
+				if err := httpSrv.Serve(ln); err != nil {
 					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()
