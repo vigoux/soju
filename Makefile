@@ -6,15 +6,22 @@ RM = rm
 SCDOC = scdoc
 GOFLAGS =
 PREFIX = /usr/local
-BINDIR = bin
-MANDIR = share/man
+BINDIR = $(PREFIX)/bin
+MANDIR = $(PREFIX)/share/man
+SYSCONFDIR = /etc
+SHAREDSTATEDIR = /var/lib
 
 all: soju sojuctl doc/soju.1
 
+pkg = git.sr.ht/~emersion/soju
+goflags = $(GOFLAGS) \
+	-ldflags="-X '$(pkg)/config.sysConfDir=$(SYSCONFDIR)' \
+		-X '$(pkg)/config.sharedStateDir=$(SHAREDSTATEDIR)'"
+
 soju:
-	$(GO) build $(GOFLAGS) ./cmd/soju
+	$(GO) build $(goflags) ./cmd/soju
 sojuctl:
-	$(GO) build $(GOFLAGS) ./cmd/sojuctl
+	$(GO) build $(goflags) ./cmd/sojuctl
 doc/soju.1: doc/soju.1.scd
 	$(SCDOC) <doc/soju.1.scd >doc/soju.1
 

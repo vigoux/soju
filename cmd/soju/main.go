@@ -45,15 +45,9 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
-	var cfg *config.Server
-	if configPath != "" {
-		var err error
-		cfg, err = config.Load(configPath)
-		if err != nil {
-			log.Fatalf("failed to load config file: %v", err)
-		}
-	} else {
-		cfg = config.Defaults()
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("failed to load config file: %v", err)
 	}
 
 	cfg.Listen = append(cfg.Listen, listen...)

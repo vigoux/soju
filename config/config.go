@@ -1,12 +1,17 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	"git.sr.ht/~emersion/go-scfg"
 )
+
+// These can be set by build scripts
+var sysConfDir, sharedStateDir string
 
 type IPSet []*net.IPNet
 
@@ -51,16 +56,31 @@ func Defaults() *Server {
 	if err != nil {
 		hostname = "localhost"
 	}
+	sqlSource := "soju.db"
+	if sharedStateDir != "" {
+		sqlSource = filepath.Join(sharedStateDir, "soju", "main.db")
+	}
 	return &Server{
 		Hostname:  hostname,
 		SQLDriver: "sqlite3",
-		SQLSource: "soju.db",
+		SQLSource: sqlSource,
 	}
 }
 
 func Load(path string) (*Server, error) {
+	isDefaultPath := path == ""
+	if path == "" && sysConfDir != "" {
+		path = filepath.Join(sysConfDir, "soju", "config")
+	}
+	if path == "" {
+		return Defaults(), nil
+	}
+
 	cfg, err := scfg.Load(path)
 	if err != nil {
+		if isDefaultPath && errors.Is(err, os.ErrNotExist) {
+			return Defaults(), nil
+		}
 		return nil, err
 	}
 	return parse(cfg)

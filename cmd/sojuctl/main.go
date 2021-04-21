@@ -32,15 +32,9 @@ func main() {
 	flag.StringVar(&configPath, "config", "", "path to configuration file")
 	flag.Parse()
 
-	var cfg *config.Server
-	if configPath != "" {
-		var err error
-		cfg, err = config.Load(configPath)
-		if err != nil {
-			log.Fatalf("failed to load config file: %v", err)
-		}
-	} else {
-		cfg = config.Defaults()
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("failed to load config file: %v", err)
 	}
 
 	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)

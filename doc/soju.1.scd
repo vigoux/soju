@@ -52,7 +52,8 @@ soju will reload the TLS certificate and key when it receives the HUP signal.
 	Show help message and quit.
 
 *-config* <path>
-	Path to the config file. If unset, a default config file is used.
+	Path to the config file. If unset, _/etc/soju/config_ will be loaded if it
+	exists.
 
 *-debug*
 	Enable debug logging (this will leak sensitive information such as
@@ -103,8 +104,8 @@ The following directives are supported:
 
 *sql* <driver> <source>
 	Set the SQL driver settings. The only supported driver is "sqlite3". The
-	source is the path to the SQLite database file. By default, the path to the
-	database file is "soju.db".
+	source is the path to the SQLite database file. By default, the database is
+	stored in _/var/lib/soju/main.db_.
 
 *log* <path>
 	Path to the bouncer logs root directory, or empty to disable logging. By
@@ -267,6 +268,14 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 *change-password* <new password>
 	Change current user password.
+
+# FILES
+
+_/etc/soju/config_
+	Default configuration file location.
+
+_/var/lib/soju_
+	State files such as the database are stored in this directory.
 
 # AUTHORS
 
