@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
 
@@ -59,6 +60,10 @@ type Server struct {
 	db     Database
 	stopWG sync.WaitGroup
 
+	vapidKeys struct {
+		priv, pub string
+	}
+
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
 	users     map[string]*user
@@ -79,6 +84,13 @@ func (s *Server) prefix() *irc.Prefix {
 }
 
 func (s *Server) Start() error {
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	if err != nil {
+		return err
+	}
+	s.vapidKeys.priv = priv
+	s.vapidKeys.pub = pub
+
 	users, err := s.db.ListUsers()
 	if err != nil {
 		return err

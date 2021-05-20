@@ -5,11 +5,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/emersion/go-sasl"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
@@ -2365,6 +2368,64 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return ircError{&irc.Message{
 				Command: "FAIL",
 				Params:  []string{"BOUNCER", "UNKNOWN_COMMAND", subcommand, "Unknown subcommand"},
+			}}
+		}
+	case "WEBPUSH":
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch subcommand {
+		case "VAPIDPUBKEY":
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "WEBPUSH",
+				Params:  []string{"VAPIDPUBKEY", dc.srv.vapidKeys.pub},
+			})
+		case "REGISTER":
+			var endpoint, keysStr string
+			if err := parseMessageParams(msg, nil, &endpoint, &keysStr); err != nil {
+				return err
+			}
+
+			// TODO: validate endpoint URL
+			keys := irc.ParseTags(keysStr)
+
+			// TODO: save the subscription in the DB, and send a notification
+			// on highlight
+
+			sub := webpush.Subscription{
+				Endpoint: endpoint,
+				Keys: webpush.Keys{
+					Auth:   string(keys["auth"]),
+					P256dh: string(keys["p256dh"]),
+				},
+			}
+			options := webpush.Options{
+				VAPIDPublicKey:  dc.srv.vapidKeys.pub,
+				VAPIDPrivateKey: dc.srv.vapidKeys.priv,
+				Subscriber:      "https://soju.im",
+				TTL:             60,
+				RecordSize:      2048,
+			}
+			resp, err := webpush.SendNotification([]byte("Hey there!"), &sub, &options)
+			if err != nil {
+				dc.logger.Printf("failed to push notification: %v", err)
+				break
+			}
+			b, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusCreated {
+				dc.logger.Printf("failed to push notification: HTTP error: %v", resp.Status)
+				dc.logger.Printf("body: %v", string(b))
+			}
+		case "UNREGISTER":
+			// TODO
+		default:
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Unknown command"},
 			}}
 		}
 	default:

@@ -5,6 +5,7 @@ go 1.13
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
+	github.com/SherClockHolmes/webpush-go v1.1.2
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/klauspost/compress v1.13.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.8
