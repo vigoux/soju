@@ -8,6 +8,11 @@ secrets:
 sources:
   - https://git.sr.ht/~emersion/soju
 tasks:
+  - man:
+      cd soju
+      make doc/soju.1
+      mandoc -T html -O style=man-style.css <doc/soju.1 >doc/soju.1.html
+      make clean
   - upload: |
       cd soju
       git checkout website
