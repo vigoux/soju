@@ -21,6 +21,7 @@ tasks:
       rsync --rsh="ssh $sshopts" -rP \
           --delete \
           --delete-excluded \
+          --exclude .git \
           . deploy@emersion.fr:/srv/http/soju
 triggers:
   - action: email
