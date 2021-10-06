@@ -1085,6 +1085,8 @@ func (dc *downstreamConn) welcome() error {
 
 	if dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
+	} else {
+		isupport = append(isupport, "BOT=B")
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -1840,10 +1842,18 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return nil
 		}
 		if entityCM == serviceNickCM {
+			flags := "H"
+			if dc.network == nil {
+				flags += "B"
+			} else if uc := dc.upstream(); uc != nil {
+				if v, ok := uc.isupport["BOT"]; ok && len(v) == 1 {
+					flags += v
+				}
+			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
-				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H", "0 " + serviceRealname},
+				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, flags, "0 " + serviceRealname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1918,6 +1928,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
 				Params:  []string{dc.nick, serviceNick, dc.srv.Hostname, "soju"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: rpl_whoisbot,
+				Params:  []string{dc.nick, serviceNick, "Is a bot"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),

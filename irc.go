@@ -18,6 +18,9 @@ const (
 	rpl_creationtime  = "329"
 	rpl_topicwhotime  = "333"
 	err_invalidcapcmd = "410"
+
+	// https://ircv3.net/specs/extensions/bot-mode
+	rpl_whoisbot = "335"
 )
 
 const (
