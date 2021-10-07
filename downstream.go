@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/emersion/go-sasl"
-	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
 )
 
@@ -595,6 +594,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		var resp []byte
 		if dc.saslServer == nil {
 			mech := strings.ToUpper(msg.Params[0])
+			// TODO: add EXTERNAL auth
 			switch mech {
 			case "PLAIN":
 				dc.saslServer = sasl.NewPlainServer(sasl.PlainAuthenticator(func(identity, username, password string) error {
@@ -975,28 +975,17 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 func (dc *downstreamConn) authenticate(username, password string) error {
 	username, clientName, networkName := unmarshalUsername(username)
 
-	u, err := dc.srv.db.GetUser(username)
+	srhtAuth, err := checkSrhtToken(password)
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: user not found: %v", username, err)
 		return errAuthFailed
 	}
 
-	// Password auth disabled
-	if u.Password == "" {
-		return errAuthFailed
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	dc.user, err = getOrCreateSrhtUser(dc.srv, srhtAuth)
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: wrong password: %v", username, err)
+		dc.logger.Printf("failed to get/create sr.ht user %q: %v", srhtAuth.Username, err)
 		return errAuthFailed
 	}
 
-	dc.user = dc.srv.getUser(username)
-	if dc.user == nil {
-		dc.logger.Printf("failed authentication for %q: user not active", username)
-		return errAuthFailed
-	}
 	dc.clientName = clientName
 	dc.networkName = networkName
 	return nil
@@ -1005,6 +994,15 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 func (dc *downstreamConn) register() error {
 	if dc.registered {
 		return fmt.Errorf("tried to register twice")
+	}
+
+	if authConn, ok := dc.conn.conn.(srhtAuthIRCConn); ok {
+		var err error
+		dc.user, err = getOrCreateSrhtUser(dc.srv, authConn.auth)
+		if err != nil {
+			dc.logger.Printf("failed to get/create sr.ht user %q: %v", authConn.auth.Username, err)
+			return errAuthFailed
+		}
 	}
 
 	password := dc.password
