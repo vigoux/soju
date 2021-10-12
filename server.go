@@ -221,6 +221,7 @@ type GamjaServerConfig struct {
 	Auth        string `json:"auth"`
 	Nick        string `json:"nick"`
 	AutoConnect bool   `json:"autoconnect"`
+	Ping        int    `json:"ping"`
 }
 
 type GamjaConfig struct {
@@ -250,6 +251,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				Auth:        "external",
 				Nick:        nick,
 				AutoConnect: true,
+				Ping:        500,
 			},
 		})
 		return
