@@ -247,7 +247,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		json.NewEncoder(w).Encode(GamjaConfig{
 			Server: GamjaServerConfig{
 				URL:         "/socket",
-				Auth:        "disabled",
+				Auth:        "external",
 				Nick:        nick,
 				AutoConnect: true,
 			},

@@ -119,7 +119,7 @@ var permanentDownstreamCaps = map[string]string{
 	"echo-message":  "",
 	"invite-notify": "",
 	"message-tags":  "",
-	"sasl":          "PLAIN",
+	"sasl":          "PLAIN,EXTERNAL",
 	"server-time":   "",
 	"setname":       "",
 
@@ -594,12 +594,27 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		var resp []byte
 		if dc.saslServer == nil {
 			mech := strings.ToUpper(msg.Params[0])
-			// TODO: add EXTERNAL auth
 			switch mech {
 			case "PLAIN":
 				dc.saslServer = sasl.NewPlainServer(sasl.PlainAuthenticator(func(identity, username, password string) error {
 					return dc.authenticate(username, password)
 				}))
+			case "EXTERNAL":
+				dc.saslServer = sasl.NewExternalServer(func(identity string) error {
+					authConn, ok := dc.conn.conn.(srhtAuthIRCConn)
+					if !ok {
+						return errAuthFailed
+					}
+
+					var err error
+					dc.user, err = getOrCreateSrhtUser(dc.srv, authConn.auth)
+					if err != nil {
+						dc.logger.Printf("failed to get/create sr.ht user %q: %v", authConn.auth.Username, err)
+						return errAuthFailed
+					}
+
+					return nil
+				})
 			default:
 				return ircError{&irc.Message{
 					Command: irc.ERR_SASLFAIL,
@@ -994,15 +1009,6 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 func (dc *downstreamConn) register() error {
 	if dc.registered {
 		return fmt.Errorf("tried to register twice")
-	}
-
-	if authConn, ok := dc.conn.conn.(srhtAuthIRCConn); ok {
-		var err error
-		dc.user, err = getOrCreateSrhtUser(dc.srv, authConn.auth)
-		if err != nil {
-			dc.logger.Printf("failed to get/create sr.ht user %q: %v", authConn.auth.Username, err)
-			return errAuthFailed
-		}
 	}
 
 	password := dc.password
