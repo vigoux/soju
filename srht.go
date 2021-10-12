@@ -2,6 +2,7 @@ package soju
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -67,6 +68,10 @@ func getOrCreateSrhtUser(srv *Server, auth *SrhtAuth) (*user, error) {
 	u := srv.getUser(auth.Username)
 	if u != nil {
 		return u, nil
+	}
+
+	if os.Getenv("SRHT_NO_ALLOWLIST") != "1" {
+		return nil, fmt.Errorf("user missing from allow-list")
 	}
 
 	record := User{Username: auth.Username}
