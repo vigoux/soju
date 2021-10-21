@@ -103,6 +103,7 @@ func main() {
 	srv.HTTPOrigins = cfg.HTTPOrigins
 	srv.AcceptProxyIPs = cfg.AcceptProxyIPs
 	srv.MaxUserNetworks = cfg.MaxUserNetworks
+	srv.UpstreamUserIPs = cfg.UpstreamUserIPs
 	srv.Debug = debug
 
 	if err := loadMOTD(srv, cfg.MOTDPath); err != nil {

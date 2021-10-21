@@ -151,6 +151,8 @@ The following directives are supported:
 	Path to the MOTD file. The bouncer MOTD is sent to clients which aren't
 	bound to a specific network. By default, no MOTD is sent.
 
+*upstream-user-ip* <cidr...>
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

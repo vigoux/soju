@@ -61,6 +61,7 @@ type Server struct {
 	HTTPOrigins     []string
 	AcceptProxyIPs  config.IPSet
 	MaxUserNetworks int
+	UpstreamUserIPs []*net.IPNet
 	Identd          *Identd // can be nil
 
 	db        Database
