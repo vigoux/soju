@@ -245,6 +245,15 @@ func formatMessage(msg *irc.Message) string {
 		} else {
 			return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
 		}
+	case "BOUNCER":
+		if len(msg.Params) >= 3 && msg.Params[0] == "NETWORK" {
+			switch msg.Params[2] {
+			case "state=connected":
+				return fmt.Sprintf("Connected to IRC")
+			case "state=disconnected":
+				return fmt.Sprintf("Disconnected from IRC")
+			}
+		}
 	default:
 		return ""
 	}

@@ -688,6 +688,18 @@ func (u *user) run() {
 }
 
 func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
+	netIDStr := fmt.Sprintf("%v", uc.network.ID)
+	bouncerNetMsg := &irc.Message{
+		Prefix:  dc.srv.prefix(),
+		Command: "BOUNCER",
+		Params:  []string{"NETWORK", netIDStr, "state=disconnected"},
+	}
+
+	for _, entry := range uc.channels.innerMap {
+		ch := entry.value.(*upstreamChannel)
+		uc.appendLog(ch.Name, bouncerNetMsg)
+	}
+
 	uc.network.conn = nil
 
 	uc.endPendingLISTs(true)
@@ -697,7 +709,6 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 		uch.updateAutoDetach(0)
 	}
 
-	netIDStr := fmt.Sprintf("%v", uc.network.ID)
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
 	})
@@ -716,11 +727,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 	u.forEachDownstream(func(dc *downstreamConn) {
 		if dc.caps["soju.im/bouncer-networks-notify"] {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BOUNCER",
-				Params:  []string{"NETWORK", netIDStr, "state=disconnected"},
-			})
+			dc.SendMessage(bouncerNetMsg)
 		}
 	})
 
